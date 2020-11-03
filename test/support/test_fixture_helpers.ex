@@ -14,6 +14,7 @@ defmodule ChatApi.TestFixtureHelpers do
     Tags,
     WidgetSettings,
     Users,
+    Uploads,
     UserInvitations
   }
 
@@ -115,6 +116,7 @@ defmodule ChatApi.TestFixtureHelpers do
     tag
   end
 
+  @spec slack_conversation_thread_fixture(ChatApi.Conversations.Conversation.t(), any) :: any
   def slack_conversation_thread_fixture(
         %Conversations.Conversation{} = conversation,
         attrs \\ %{}
@@ -203,6 +205,23 @@ defmodule ChatApi.TestFixtureHelpers do
       |> BrowserReplayEvents.create_browser_replay_event()
 
     browser_replay_event
+  end
+
+  def upload_fixture(
+        %Accounts.Account{} = account,
+        %Messages.Message{} = message,
+        attrs \\ %{}
+      ) do
+    {:ok, upload} =
+      attrs
+      |> Enum.into(%{
+        account_id: account.id,
+        message_id: messsage.id,
+        file_url: "bug_image.png",
+      })
+      |> Uploads.create_upload()
+
+    upload
   end
 
   defp counter do

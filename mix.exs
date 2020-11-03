@@ -36,6 +36,8 @@ defmodule ChatApi.MixProject do
       {:credo, "~> 1.4", only: [:dev, :test], runtime: false},
       {:dialyxir, "~> 1.0", only: [:dev], runtime: false},
       {:customerio, "~> 0.2"},
+      {:ex_aws, "~> 2.1"},
+      {:ex_aws_s3, "~> 2.0"},
       {:swoosh, "~> 1.0"},
       {:gen_smtp, "~> 0.13"},
       {:phoenix, "~> 1.5.5"},
@@ -59,7 +61,8 @@ defmodule ChatApi.MixProject do
       {:oauth2, "~> 0.9"},
       {:mail, "~> 0.2"},
       {:phoenix_swagger, "~> 0.8"},
-      {:ex_json_schema, "~> 0.5"}
+      {:ex_json_schema, "~> 0.5"},
+      {:uuid, "~> 1.1" }
     ]
   end
 

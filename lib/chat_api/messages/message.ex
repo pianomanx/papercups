@@ -6,6 +6,7 @@ defmodule ChatApi.Messages.Message do
   alias ChatApi.Accounts.Account
   alias ChatApi.Customers.Customer
   alias ChatApi.Users.User
+  alias ChatApi.Uploads.Upload
 
   @primary_key {:id, :binary_id, autogenerate: true}
   @foreign_key_type :binary_id
@@ -18,6 +19,7 @@ defmodule ChatApi.Messages.Message do
     belongs_to(:account, Account)
     belongs_to(:customer, Customer)
     belongs_to(:user, User, type: :integer)
+    has_one(:upload, Upload)
 
     timestamps()
   end
