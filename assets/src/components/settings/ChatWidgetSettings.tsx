@@ -3,8 +3,6 @@ import {capitalize, debounce} from 'lodash';
 import {Box} from 'theme-ui';
 import {TwitterPicker} from 'react-color';
 import {ChatWidget, Papercups} from '@papercups-io/chat-widget';
-import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
-import {prism as syntaxHighlightingLanguage} from 'react-syntax-highlighter/dist/esm/styles/prism';
 import * as API from '../../api';
 import {Account, User, WidgetIconVariant} from '../../types';
 import {
@@ -13,6 +11,7 @@ import {
   Popover,
   Input,
   Select,
+  StandardSyntaxHighlighter,
   Switch,
   Text,
   Title,
@@ -21,6 +20,7 @@ import {
 import {InfoCircleTwoTone} from '../icons';
 import {BASE_URL, FRONTEND_BASE_URL} from '../../config';
 import logger from '../../logger';
+import {formatUserExternalId} from '../../utils';
 
 type Props = {};
 type State = {
@@ -40,7 +40,7 @@ type State = {
   iconVariant: WidgetIconVariant;
 };
 
-class GettingStartedOverview extends React.Component<Props, State> {
+class ChatWidgetSettings extends React.Component<Props, State> {
   state: State = {
     accountId: null,
     account: null,
@@ -230,12 +230,12 @@ class GettingStartedOverview extends React.Component<Props, State> {
       return {};
     }
 
-    const {id, email} = currentUser;
+    const {email} = currentUser;
 
     // TODO: include name if available
     return {
       email: email,
-      external_id: [id, email].join('|'),
+      external_id: formatUserExternalId(currentUser),
       metadata: {
         company_name: account.company_name,
         subscription_plan: account.subscription_plan,
@@ -273,7 +273,7 @@ class GettingStartedOverview extends React.Component<Props, State> {
         }}
       >
         <Box mb={4}>
-          <Title>Getting Started</Title>
+          <Title>Chat Widget Settings</Title>
           <Paragraph>
             <Text>
               Before you can start chatting with your customers, you'll need to
@@ -284,14 +284,6 @@ class GettingStartedOverview extends React.Component<Props, State> {
 
         <Box mb={4}>
           <Title level={3}>Customize your widget</Title>
-          <Paragraph>
-            <Text>
-              Customize your widget with the form and color picker. It will
-              update the preview to the right as well as the code below so you
-              can easily copy and paste it into your website looking just the
-              way you like!
-            </Text>
-          </Paragraph>
 
           <Box mb={3}>
             <label htmlFor="title">Update the title:</label>
@@ -528,17 +520,6 @@ enum Languages {
   REACT = 'REACT',
 }
 
-const StandardSyntaxHighlighter: FunctionComponent<{language: string}> = ({
-  language,
-  children,
-}) => {
-  return (
-    <SyntaxHighlighter language={language} style={syntaxHighlightingLanguage}>
-      {children}
-    </SyntaxHighlighter>
-  );
-};
-
 const CodeSnippet: FunctionComponent<Pick<
   State,
   | 'accountId'
@@ -696,4 +677,4 @@ const ExamplePage = () => {
   );
 };
 
-export default GettingStartedOverview;
+export default ChatWidgetSettings;

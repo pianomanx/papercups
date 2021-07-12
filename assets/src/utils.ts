@@ -1,8 +1,9 @@
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
+import {range} from 'lodash';
 import qs from 'query-string';
 import {env} from './config';
-import {Message} from './types';
+import {Message, User} from './types';
 
 dayjs.extend(utc);
 
@@ -10,10 +11,24 @@ const {REACT_APP_STRIPE_PUBLIC_KEY} = env;
 
 export const sleep = (ms: number) => new Promise((res) => setTimeout(res, ms));
 
+export const noop = () => {};
+
 export const hasValidStripeKey = () => {
   const key = REACT_APP_STRIPE_PUBLIC_KEY;
 
   return key && key.startsWith('pk_');
+};
+
+export const isValidEmail = (email?: string | null) => {
+  if (!email) {
+    return false;
+  }
+  // Super basic validation: https://stackoverflow.com/a/4964763
+  return /(.+)@(.+){2,}\.(.+){2,}/.test(email);
+};
+
+export const formatUserExternalId = ({id, email}: User) => {
+  return [id, email].join('|');
 };
 
 export const formatRelativeTime = (date: dayjs.Dayjs) => {
@@ -97,6 +112,17 @@ export const isValidUuid = (id: any) => {
   const regex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[089ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
   return regex.test(id);
+};
+
+export const generateDateRange = (
+  start: dayjs.Dayjs,
+  finish: dayjs.Dayjs
+): Array<dayjs.Dayjs> => {
+  const diff = finish.endOf('day').diff(start.startOf('day'), 'day');
+
+  return range(diff + 1).map((n) => {
+    return start.add(n, 'day');
+  });
 };
 
 export const sortConversationMessages = (messages: Array<Message>) => {

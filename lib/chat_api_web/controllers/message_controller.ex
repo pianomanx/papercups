@@ -94,8 +94,7 @@ defmodule ChatApiWeb.MessageController do
   def create(conn, %{"message" => message_params}) do
     with {:ok, params} <- sanitize_new_message_params(conn, message_params),
          {:ok, %Message{} = msg} <- Messages.create_message(params),
-         message <-
-           Messages.get_message!(msg.id) do
+         message <- Messages.get_message!(msg.id) do
       broadcast_new_message(message)
 
       conn
@@ -188,6 +187,7 @@ defmodule ChatApiWeb.MessageController do
     |> Messages.Notification.notify(:mattermost)
     |> Messages.Notification.notify(:webhooks)
     |> Messages.Notification.notify(:conversation_reply_email)
+    |> Messages.Notification.notify(:gmail)
     |> Messages.Notification.notify(:sms)
   end
 end

@@ -4,7 +4,7 @@ import {debounce} from 'lodash';
 import * as API from '../../api';
 import {Issue} from '../../types';
 import {AutoComplete} from '../common';
-import {IssueStateTag} from './IssuesOverview';
+import {IssueStateTag} from './IssuesTable';
 import logger from '../../logger';
 
 type Props = {
@@ -71,7 +71,7 @@ class SearchIssuesInput extends React.Component<Props, State> {
       >
         {options.map(({id, title, state}) => {
           return (
-            <AutoComplete.Option key={id} value={title}>
+            <AutoComplete.Option key={id} value={`${title} (${state})`}>
               <Flex sx={{alignItems: 'center'}}>
                 <Box mr={2}>{title}</Box>
                 <IssueStateTag state={state} />

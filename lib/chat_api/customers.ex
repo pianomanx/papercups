@@ -6,15 +6,17 @@ defmodule ChatApi.Customers do
   import Ecto.Query, warn: false
   alias ChatApi.Repo
 
+  alias ChatApi.Conversations
   alias ChatApi.Customers.Customer
   alias ChatApi.Issues.CustomerIssue
-  alias ChatApi.Tags.{CustomerTag, Tag}
+  alias ChatApi.Tags.CustomerTag
 
   @spec list_customers(binary(), map()) :: [Customer.t()]
   def list_customers(account_id, filters \\ %{}) do
     Customer
     |> where(account_id: ^account_id)
     |> where(^filter_where(filters))
+    |> filter_by_tags(filters)
     |> filter_by_tag(filters)
     |> filter_by_issue(filters)
     |> order_by(desc: :last_seen_at)
@@ -34,12 +36,16 @@ defmodule ChatApi.Customers do
 
   """
   def list_customers(account_id, filters, pagination_params) do
+    conversations_query = Conversations.query_most_recent_conversation(partition_by: :customer_id)
+
     Customer
     |> where(account_id: ^account_id)
     |> where(^filter_where(filters))
     |> filter_by_tag(filters)
+    |> filter_by_tags(filters)
     |> filter_by_issue(filters)
     |> order_by(desc: :last_seen_at)
+    |> preload(conversations: ^conversations_query)
     |> Repo.paginate(pagination_params)
   end
 
@@ -51,6 +57,31 @@ defmodule ChatApi.Customers do
   end
 
   def filter_by_tag(query, _filters), do: query
+
+  @spec filter_by_tags(Ecto.Query.t(), map()) :: Ecto.Query.t()
+  def filter_by_tags(query, %{"tag_ids" => tag_ids}) when not is_nil(tag_ids) do
+    # We need to return a query that includes only the customers that are tagged with the passed in tag_ids.
+
+    # Here, we aggregate the number of tags each customer has, but we only count the ones included in tag_ids.
+    # Essentially, we're querying the number of tag_ids each customer has.
+    customer_tags_query =
+      from(ct in CustomerTag,
+        where: ct.tag_id in ^tag_ids,
+        group_by: ct.customer_id,
+        select: %{customer_id: ct.customer_id, tag_count: count(ct.tag_id)}
+      )
+
+    # Because tag_count represents the number of tag_ids each customer has,
+    # we're able to join the two query and filter only the customers that
+    # have exactly the same number of tag_ids.
+    from(c in query,
+      join: ct in subquery(customer_tags_query),
+      on: c.id == ct.customer_id,
+      where: ct.tag_count == ^length(tag_ids)
+    )
+  end
+
+  def filter_by_tags(query, _filters), do: query
 
   @spec filter_by_issue(Ecto.Query.t(), map()) :: Ecto.Query.t()
   def filter_by_issue(query, %{"issue_id" => issue_id}) when not is_nil(issue_id) do
@@ -241,9 +272,6 @@ defmodule ChatApi.Customers do
       %{
         # Defaults
         first_seen: DateTime.utc_now(),
-        last_seen: DateTime.utc_now(),
-        # TODO: last_seen is stored as a date, while last_seen_at is stored as
-        # a datetime -- we should opt for datetime values whenever possible
         last_seen_at: DateTime.utc_now()
       },
       overrides
@@ -308,23 +336,6 @@ defmodule ChatApi.Customers do
       |> Repo.one()
 
     count > 0
-  end
-
-  @spec list_tags(nil | binary() | Customer.t()) :: nil | [Tag.t()]
-  def list_tags(nil), do: []
-
-  def list_tags(%Customer{} = customer) do
-    customer |> Repo.preload(:tags) |> Map.get(:tags)
-  end
-
-  def list_tags(id) do
-    # TODO: optimize this query
-    Customer
-    |> Repo.get(id)
-    |> case do
-      nil -> []
-      found -> found |> Repo.preload(:tags) |> Map.get(:tags)
-    end
   end
 
   @spec get_tag(Customer.t(), binary()) :: nil | CustomerTag.t()
@@ -445,12 +456,28 @@ defmodule ChatApi.Customers do
         dynamic
 
       {"q", query}, dynamic ->
-        value = "%" <> query <> "%"
-        dynamic([r], ^dynamic and (ilike(r.email, ^value) or ilike(r.name, ^value)))
+        dynamic([r], ^dynamic and ^filter_by_query(query))
 
       {_, _}, dynamic ->
         # Not a where parameter
         dynamic
+    end)
+  end
+
+  defp filter_by_query(query) do
+    query
+    |> String.split(" ")
+    |> Enum.reduce(dynamic(true), fn
+      word, dynamic ->
+        case String.split(word, ":") do
+          [key, value] ->
+            dynamic([r], ^dynamic and fragment("(metadata->>? = ?)", ^key, ^value))
+
+          [word] ->
+            value = "%" <> word <> "%"
+
+            dynamic([r], ^dynamic and (ilike(r.email, ^value) or ilike(r.name, ^value)))
+        end
     end)
   end
 end

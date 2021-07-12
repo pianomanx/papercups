@@ -1,3 +1,4 @@
+import React, {FunctionComponent} from 'react';
 import Alert from 'antd/lib/alert';
 import AutoComplete from 'antd/lib/auto-complete';
 import Badge from 'antd/lib/badge';
@@ -8,7 +9,9 @@ import Drawer from 'antd/lib/drawer';
 import Dropdown from 'antd/lib/dropdown';
 import Empty from 'antd/lib/empty';
 import Input from 'antd/lib/input';
+import InputNumber from 'antd/lib/input-number';
 import Layout from 'antd/lib/layout';
+import List from 'antd/lib/list';
 import Menu from 'antd/lib/menu';
 import Modal from 'antd/lib/modal';
 import notification from 'antd/lib/notification';
@@ -27,6 +30,9 @@ import Tooltip from 'antd/lib/tooltip';
 import Typography from 'antd/lib/typography';
 import Upload from 'antd/lib/upload';
 
+import {Prism as SyntaxHighlighter} from 'react-syntax-highlighter';
+import {prism as syntaxHighlightingLanguage} from 'react-syntax-highlighter/dist/esm/styles/prism';
+
 import {
   blue,
   green,
@@ -39,6 +45,7 @@ import {
   grey,
 } from '@ant-design/colors';
 
+import {Box, Flex, SxStyleProp} from 'theme-ui';
 import DatePicker from './DatePicker';
 import MarkdownRenderer from './MarkdownRenderer';
 
@@ -65,6 +72,7 @@ export const colors = {
   text: 'rgba(0, 0, 0, 0.65)',
   secondary: 'rgba(0, 0, 0, 0.45)',
   note: '#fff1b8',
+  noteSecondary: 'rgba(254,237,175,.4)',
 };
 
 export const shadows = {
@@ -75,6 +83,71 @@ export const shadows = {
     '0 0 #0000, 0 0 #0000, 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06)',
   large:
     '0 0 #0000, 0 0 #0000, 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05)',
+};
+
+export const StandardSyntaxHighlighter: FunctionComponent<{
+  language: string;
+  style?: any;
+}> = ({language, children, style = {}}) => {
+  return (
+    <SyntaxHighlighter
+      language={language}
+      style={syntaxHighlightingLanguage}
+      customStyle={style}
+    >
+      {children}
+    </SyntaxHighlighter>
+  );
+};
+
+export const Card = ({
+  children,
+  shadow = false,
+  sx = {},
+}: {
+  children: any;
+  shadow?: boolean | 'small' | 'medium' | 'large';
+  sx?: SxStyleProp;
+}) => {
+  const shadowKey = shadow && typeof shadow === 'boolean' ? 'primary' : shadow;
+  const boxShadow = shadowKey ? shadows[shadowKey] || shadows.primary : 'none';
+
+  return (
+    <Box
+      sx={{
+        bg: colors.white,
+        border: '1px solid rgba(0, 0, 0, .06)',
+        borderRadius: 4,
+        boxShadow,
+        ...sx,
+      }}
+    >
+      {children}
+    </Box>
+  );
+};
+
+export const Container = ({
+  children,
+  sx = {},
+}: {
+  children: any;
+  sx?: SxStyleProp;
+}) => {
+  return (
+    <Flex
+      sx={{
+        width: '100%',
+        justifyContent: 'center',
+        alignItems: 'center',
+        flexDirection: 'column',
+      }}
+    >
+      <Box p={4} sx={{flex: 1, width: '100%', maxWidth: 1080, ...sx}}>
+        {children}
+      </Box>
+    </Flex>
+  );
 };
 
 export const TextArea = Input.TextArea;
@@ -125,6 +198,8 @@ export {
   Dropdown,
   Empty,
   Input,
+  InputNumber,
+  List,
   MarkdownRenderer,
   Menu,
   Modal,

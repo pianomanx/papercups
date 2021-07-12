@@ -2,11 +2,32 @@ defmodule ChatApiWeb.SlackController do
   use ChatApiWeb, :controller
 
   require Logger
-
+  alias ChatApiWeb.SlackAuthorizationView
   alias ChatApi.{Conversations, Slack, SlackAuthorizations}
   alias ChatApi.SlackAuthorizations.SlackAuthorization
 
   action_fallback(ChatApiWeb.FallbackController)
+
+  @spec notify(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def notify(conn, %{"text" => text} = params) do
+    with %{account_id: account_id} <- conn.assigns.current_user,
+         %SlackAuthorization{access_token: access_token, channel: channel} <-
+           SlackAuthorizations.get_authorization_by_account(account_id, %{
+             type: Map.get(params, "type", "reply")
+           }),
+         {:ok, %{body: data}} <-
+           Slack.Client.send_message(
+             %{
+               "channel" => Map.get(params, "channel", channel),
+               "text" => text
+             },
+             access_token
+           ) do
+      json(conn, %{data: data})
+    else
+      _ -> json(conn, %{data: nil})
+    end
+  end
 
   @spec oauth(Plug.Conn.t(), map()) :: Plug.Conn.t()
   def oauth(conn, %{"code" => code} = params) do
@@ -121,15 +142,22 @@ defmodule ChatApiWeb.SlackController do
         json(conn, %{data: nil})
 
       auth ->
-        json(conn, %{
-          data: %{
-            id: auth.id,
-            created_at: auth.inserted_at,
-            channel: auth.channel,
-            configuration_url: auth.configuration_url,
-            team_name: auth.team_name
-          }
-        })
+        conn
+        |> put_view(SlackAuthorizationView)
+        |> render("show.json", slack_authorization: auth)
+    end
+  end
+
+  @spec update_settings(Plug.Conn.t(), map()) :: Plug.Conn.t()
+  def update_settings(conn, %{"id" => id, "settings" => settings}) do
+    with %{account_id: _account_id} <- conn.assigns.current_user,
+         %SlackAuthorization{} = auth <-
+           SlackAuthorizations.get_slack_authorization!(id),
+         {:ok, %SlackAuthorization{} = authorization} <-
+           SlackAuthorizations.update_slack_authorization(auth, %{settings: settings}) do
+      conn
+      |> put_view(SlackAuthorizationView)
+      |> render("show.json", slack_authorization: authorization)
     end
   end
 

@@ -29,6 +29,7 @@ defmodule ChatApi.SlackAuthorizations do
     SlackAuthorization
     |> where(^filter_where(filters))
     |> order_by(desc: :inserted_at)
+    |> first()
     |> Repo.one()
   end
 
@@ -38,6 +39,7 @@ defmodule ChatApi.SlackAuthorizations do
     |> where(account_id: ^account_id)
     |> where(^filter_where(filters))
     |> order_by(desc: :inserted_at)
+    |> first()
     |> Repo.one()
   end
 
@@ -85,6 +87,17 @@ defmodule ChatApi.SlackAuthorizations do
   def has_authorization_scope?(%SlackAuthorization{scope: full_scope}, scope) do
     String.contains?(full_scope, scope)
   end
+
+  @spec get_authorization_settings(SlackAuthorization.t()) :: map()
+  def get_authorization_settings(%SlackAuthorization{settings: nil}),
+    do: %{
+      sync_all_incoming_threads: true,
+      sync_by_emoji_tagging: true,
+      sync_trigger_emoji: "eyes",
+      forward_synced_messages_to_reply_channel: true
+    }
+
+  def get_authorization_settings(%SlackAuthorization{settings: settings}), do: settings
 
   # Pulled from https://hexdocs.pm/ecto/dynamic-queries.html#building-dynamic-queries
   defp filter_where(params) do

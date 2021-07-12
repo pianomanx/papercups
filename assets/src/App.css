@@ -30,10 +30,15 @@ body {
 
 .Text--markdown {
   overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .Text--markdown a {
   text-decoration: underline;
+}
+
+.Text--markdown p:not(:first-child) {
+  margin-top: 4px;
 }
 
 .Text--white {

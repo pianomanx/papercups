@@ -15,6 +15,7 @@ defmodule ChatApi.Conversations.Conversation do
           status: String.t(),
           priority: String.t(),
           source: String.t() | nil,
+          subject: String.t() | nil,
           read: boolean(),
           archived_at: any(),
           closed_at: any(),
@@ -42,6 +43,7 @@ defmodule ChatApi.Conversations.Conversation do
     field(:status, :string, default: "open")
     field(:priority, :string, default: "not_priority")
     field(:source, :string, default: "chat")
+    field(:subject, :string)
     field(:read, :boolean, default: false)
     field(:archived_at, :utc_datetime)
     field(:first_replied_at, :utc_datetime)
@@ -76,10 +78,11 @@ defmodule ChatApi.Conversations.Conversation do
       :first_replied_at,
       :closed_at,
       :source,
+      :subject,
       :metadata
     ])
     |> validate_required([:status, :account_id, :customer_id])
-    |> validate_inclusion(:source, ["chat", "slack", "email", "sms"])
+    |> validate_inclusion(:source, ["chat", "slack", "email", "sms", "api", "sandbox"])
     |> put_closed_and_last_activity_at()
     |> foreign_key_constraint(:account_id)
     |> foreign_key_constraint(:customer_id)

@@ -2,9 +2,10 @@ import React from 'react';
 import {Link, RouteComponentProps} from 'react-router-dom';
 import {Box, Flex} from 'theme-ui';
 import {
-  colors,
-  shadows,
   Button,
+  Card,
+  Divider,
+  MarkdownRenderer,
   Popconfirm,
   Result,
   Text,
@@ -17,12 +18,10 @@ import {sleep} from '../../utils';
 import Spinner from '../Spinner';
 import logger from '../../logger';
 import CustomersTableContainer from '../customers/CustomersTableContainer';
-import {IssueStateTag} from './IssuesOverview';
 import {SearchCustomersModalButton} from '../customers/SearchCustomers';
-
-const isValidGithubUrl = (url: string): boolean => {
-  return url.indexOf('github.com/') !== -1;
-};
+import {IssueStateTag} from './IssuesTable';
+import {UpdateIssueModalButton} from './UpdateIssueModal';
+import {isValidGithubUrl} from './support';
 
 const formatGithubUrl = (url: string) => {
   const [, githubIssuePath] = url.split('github.com/');
@@ -31,20 +30,7 @@ const formatGithubUrl = (url: string) => {
 };
 
 const DetailsSectionCard = ({children}: {children: any}) => {
-  return (
-    <Box
-      p={3}
-      mb={3}
-      sx={{
-        bg: colors.white,
-        border: '1px solid rgba(0,0,0,.06)',
-        borderRadius: 4,
-        boxShadow: shadows.medium,
-      }}
-    >
-      {children}
-    </Box>
-  );
+  return <Card sx={{p: 3, mb: 3}}>{children}</Card>;
 };
 
 type Props = RouteComponentProps<{id: string}>;
@@ -177,7 +163,7 @@ class IssueDetailsPage extends React.Component<Props, State> {
         sx={{
           flexDirection: 'column',
           flex: 1,
-          bg: 'rgb(245, 245, 245)',
+          bg: 'rgb(250, 250, 250)',
         }}
       >
         <Flex
@@ -188,50 +174,38 @@ class IssueDetailsPage extends React.Component<Props, State> {
             <Button icon={<ArrowLeftOutlined />}>Back to all issues</Button>
           </Link>
 
-          {/* TODO: implement me! */}
-          {false && (
-            <Popconfirm
-              title="Are you sure you want to delete this issue?"
-              okText="Yes"
-              cancelText="No"
-              placement="bottomLeft"
-              onConfirm={this.handleDeleteIssue}
-            >
-              <Button danger loading={deleting} icon={<DeleteOutlined />}>
-                Delete issue
-              </Button>
-            </Popconfirm>
-          )}
+          <Popconfirm
+            title="Are you sure you want to delete this issue?"
+            okText="Yes"
+            cancelText="No"
+            placement="bottomLeft"
+            onConfirm={this.handleDeleteIssue}
+          >
+            <Button danger loading={deleting} icon={<DeleteOutlined />}>
+              Delete issue
+            </Button>
+          </Popconfirm>
         </Flex>
 
         <Flex sx={{justifyContent: 'space-between', alignItems: 'center'}}>
           <Title level={2}>{title || 'Issue details'}</Title>
 
-          {/* 
-          TODO: implement me!
-
-          <Button onClick={this.handleOpenUpdateIssueModal}>
-            Edit issue details
-          </Button> 
-          */}
+          <UpdateIssueModalButton
+            type="default"
+            issue={issue}
+            onSuccess={this.handleRefreshIssue}
+          >
+            Edit
+          </UpdateIssueModalButton>
         </Flex>
 
         <Flex>
           <Box sx={{flex: 1, pr: 4}}>
+            {/* TODO: style the issue details similar to GitHub? */}
             <DetailsSectionCard>
-              <Box mb={3}>
-                <Box>
-                  <Text strong>Title</Text>
-                </Box>
-                <Text>{title}</Text>
-              </Box>
+              <MarkdownRenderer source={description || '_No description_'} />
 
-              <Box mb={3}>
-                <Box>
-                  <Text strong>Description</Text>
-                </Box>
-                <Text>{description || 'N/A'}</Text>
-              </Box>
+              <Divider />
 
               <Box mb={3}>
                 <Box>
@@ -259,7 +233,7 @@ class IssueDetailsPage extends React.Component<Props, State> {
             </DetailsSectionCard>
           </Box>
 
-          <Box sx={{flex: 3}}>
+          <Box sx={{flex: 2}}>
             <DetailsSectionCard>
               <Flex
                 mb={3}

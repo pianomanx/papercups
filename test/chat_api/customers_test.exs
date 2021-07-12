@@ -9,7 +9,7 @@ defmodule ChatApi.CustomersTest do
 
     @update_attrs %{
       first_seen: ~D[2020-01-01],
-      last_seen: ~D[2020-01-02],
+      last_seen_at: ~U[2020-01-05 00:00:00Z],
       name: "Test User",
       email: "user@test.com",
       phone: "+16501235555",
@@ -50,6 +50,43 @@ defmodule ChatApi.CustomersTest do
       assert customer_ids == [new_customer.id]
     end
 
+    test "list_customers/2 can filter by customer tags", %{account: account} do
+      customer_1 = insert(:customer, account: account, company: nil)
+      customer_2 = insert(:customer, account: account, company: nil)
+      tag_1 = insert(:tag, account: account)
+      tag_2 = insert(:tag, account: account)
+      tag_3 = insert(:tag, account: account)
+
+      # customer_1 has two tags: tag_1 and tag_2
+      insert(:customer_tag, customer: customer_1, tag: tag_1)
+      insert(:customer_tag, customer: customer_1, tag: tag_2)
+
+      # customer_2 has two tags: tag_1 and tag_3
+      insert(:customer_tag, customer: customer_2, tag: tag_1)
+      insert(:customer_tag, customer: customer_2, tag: tag_3)
+
+      # Filtering with a tag that multiple customers have
+      customer_ids =
+        Customers.list_customers(account.id, %{"tag_ids" => [tag_1.id]})
+        |> Enum.map(& &1.id)
+
+      assert Enum.sort(customer_ids) == Enum.sort([customer_1.id, customer_2.id])
+
+      # Filtering with multiple tags only returns customers who have all of them
+      customer_ids =
+        Customers.list_customers(account.id, %{"tag_ids" => [tag_1.id, tag_2.id]})
+        |> Enum.map(& &1.id)
+
+      assert customer_ids == [customer_1.id]
+
+      # Filtering with a single tag that only one customer has
+      customer_ids =
+        Customers.list_customers(account.id, %{"tag_ids" => [tag_3.id]})
+        |> Enum.map(& &1.id)
+
+      assert customer_ids == [customer_2.id]
+    end
+
     test "list_customers/2 can search by name/email", %{account: account} do
       alex = insert(:customer, account: account, name: "Alex Reichert")
       alexis = insert(:customer, account: account, name: "Alexis O'Hare")
@@ -88,6 +125,48 @@ defmodule ChatApi.CustomersTest do
       assert kam_ids == [kam.id]
     end
 
+    test "list_customers/2 can search customer metadata within the `q` query param", %{
+      account: account
+    } do
+      premium_dev =
+        insert(:customer,
+          account: account,
+          metadata: %{plan: "premium", role: "dev"}
+        )
+
+      starter_dev =
+        insert(:customer,
+          account: account,
+          metadata: %{plan: "starter", role: "dev"}
+        )
+
+      premium_pm =
+        insert(:customer,
+          account: account,
+          metadata: %{plan: "premium", role: "pm"}
+        )
+
+      dev_ids =
+        account.id
+        |> Customers.list_customers(%{"q" => "role:dev"})
+        |> Enum.map(& &1.id)
+
+      premium_ids =
+        account.id
+        |> Customers.list_customers(%{"q" => "plan:premium"})
+        |> Enum.map(& &1.id)
+
+      starter_dev_ids =
+        account.id
+        |> Customers.list_customers(%{"q" => "role:dev plan:starter"})
+        |> Enum.map(& &1.id)
+
+      assert Enum.sort(dev_ids) == Enum.sort([premium_dev.id, starter_dev.id])
+      assert Enum.sort(premium_ids) == Enum.sort([premium_dev.id, premium_pm.id])
+      assert starter_dev_ids == [starter_dev.id]
+      assert [] == Customers.list_customers(account.id, %{"q" => "role:ceo plan:starter"})
+    end
+
     test "list_customers/3 returns paginated customers" do
       account = insert(:account)
       insert_list(10, :customer, account: account)
@@ -120,7 +199,7 @@ defmodule ChatApi.CustomersTest do
       assert {:ok,
               %Customer{
                 first_seen: ~D[2020-01-01],
-                last_seen: ~D[2020-01-01]
+                last_seen_at: ~U[2020-01-05 00:00:00Z]
               } = _customer} = Customers.create_customer(attrs)
     end
 

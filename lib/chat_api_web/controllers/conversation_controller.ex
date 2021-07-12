@@ -282,7 +282,20 @@ defmodule ChatApiWeb.ConversationController do
   @spec maybe_create_message(Plug.Conn.t(), Conversation.t(), map()) :: any()
   defp maybe_create_message(
          conn,
-         conversation,
+         %Conversation{source: "email"} = conversation,
+         %{"message" => %{"body" => body} = _message_params}
+       ) do
+    with %{id: user_id} <- conn.assigns.current_user do
+      case ChatApi.Google.InitializeGmailThread.send(body, conversation, user_id) do
+        %Messages.Message{} -> :ok
+        {:error, message} -> {:error, :unprocessable_entity, message}
+      end
+    end
+  end
+
+  defp maybe_create_message(
+         conn,
+         %Conversation{id: conversation_id},
          %{"message" => %{"body" => _body} = message_params}
        ) do
     with %{id: user_id, account_id: account_id} <- conn.assigns.current_user,
@@ -291,7 +304,7 @@ defmodule ChatApiWeb.ConversationController do
            |> Map.merge(%{
              "user_id" => user_id,
              "account_id" => account_id,
-             "conversation_id" => conversation.id
+             "conversation_id" => conversation_id
            })
            |> Messages.create_message() do
       Messages.get_message!(msg.id)
@@ -312,9 +325,17 @@ defmodule ChatApiWeb.ConversationController do
       params,
       [],
       fn
-        {"limit", value}, acc -> acc ++ [limit: value]
-        {"after", value}, acc -> acc ++ [after: value]
-        _, acc -> acc
+        {"limit", value}, acc ->
+          case Integer.parse(value) do
+            {limit, ""} -> acc ++ [limit: limit]
+            _ -> acc
+          end
+
+        {"after", value}, acc ->
+          acc ++ [after: value]
+
+        _, acc ->
+          acc
       end
     )
   end

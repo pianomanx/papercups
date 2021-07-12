@@ -61,7 +61,7 @@ defmodule ChatApi.Factory do
   def customer_factory do
     %ChatApi.Customers.Customer{
       first_seen: ~D[2020-01-01],
-      last_seen: ~D[2020-01-01],
+      last_seen_at: ~U[2020-01-05 00:00:00Z],
       email: sequence(:email, &"test-#{&1}@test.com"),
       account: build(:account),
       company: build(:company),
@@ -109,11 +109,32 @@ defmodule ChatApi.Factory do
     }
   end
 
+  def mattermost_authorization_factory do
+    %ChatApi.Mattermost.MattermostAuthorization{
+      access_token: "some access_token",
+      account: build(:account),
+      user: build(:user)
+    }
+  end
+
   def issue_factory do
     %ChatApi.Issues.Issue{
       title: sequence("some title"),
       body: "some body",
       state: "unstarted",
+      account: build(:account),
+      creator: build(:user)
+    }
+  end
+
+  def lambda_factory do
+    %ChatApi.Lambdas.Lambda{
+      name: sequence("some name"),
+      description: "some description",
+      status: "inactive",
+      code: "var message = 'Hello world!';",
+      language: "javascript",
+      runtime: "nodejs14.x",
       account: build(:account),
       creator: build(:user)
     }
@@ -192,6 +213,14 @@ defmodule ChatApi.Factory do
       conversation: build(:conversation),
       tag: build(:tag),
       creator: build(:user)
+    }
+  end
+
+  def customer_tag_factory do
+    %ChatApi.Tags.CustomerTag{
+      account: build(:account),
+      customer: build(:customer),
+      tag: build(:tag)
     }
   end
 

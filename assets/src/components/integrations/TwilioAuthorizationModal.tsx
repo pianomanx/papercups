@@ -100,7 +100,19 @@ const TwilioAuthorizationModal = ({
         <Paragraph>
           <Text type="secondary">
             Please provide your Twilio API credentials to get started.
-            {/* TODO: add link to docs once https://github.com/papercups-io/papercups/issues/677 is completed */}
+          </Text>
+        </Paragraph>
+        <Paragraph>
+          <Text type="secondary">
+            To get set up, please follow{' '}
+            <a
+              href="https://docs.papercups.io/reply-via-sms"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              these instructions
+            </a>
+            .
           </Text>
         </Paragraph>
 
@@ -170,10 +182,10 @@ export const TwilioAuthorizationButton = ({
   const isConnected = status === 'connected' && !!authorizationId;
 
   const handleOpenModal = () => setOpen(true);
-  const handlCloseModal = () => setOpen(false);
+  const handleCloseModal = () => setOpen(false);
   const handleSuccess = () => {
     onUpdate();
-    handlCloseModal();
+    handleCloseModal();
   };
 
   const handleDisconnect = async () => {
@@ -214,7 +226,7 @@ export const TwilioAuthorizationButton = ({
         visible={isOpen}
         authorizationId={authorizationId}
         onSuccess={handleSuccess}
-        onCancel={handlCloseModal}
+        onCancel={handleCloseModal}
       />
     </>
   );

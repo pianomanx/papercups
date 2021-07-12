@@ -519,11 +519,6 @@ defmodule ChatApi.Slack.Helpers do
     |> SlackConversationThreads.create_slack_conversation_thread()
   end
 
-  @spec get_message_type(Message.t()) :: atom()
-  def get_message_type(%Message{customer_id: nil}), do: :agent
-  def get_message_type(%Message{user_id: nil}), do: :customer
-  def get_message_type(_message), do: :unknown
-
   @spec is_bot_message?(map()) :: boolean()
   def is_bot_message?(%{"bot_id" => bot_id}) when not is_nil(bot_id), do: true
   def is_bot_message?(_), do: false
@@ -719,6 +714,10 @@ defmodule ChatApi.Slack.Helpers do
   def format_message_body(%Message{body: nil}), do: ""
   def format_message_body(%Message{private: true, type: "note", body: nil}), do: "\\\\ _Note_"
   def format_message_body(%Message{private: true, type: "note", body: body}), do: "\\\\ _#{body}_"
+
+  def format_message_body(%Message{private: true, type: "bot", body: body}),
+    do: "\\\\ _ #{body} _"
+
   # TODO: handle messages that are too long better (rather than just slicing them)
   def format_message_body(%Message{body: body}) do
     case String.length(body) do
@@ -844,6 +843,8 @@ defmodule ChatApi.Slack.Helpers do
     %{
       "channel" => channel,
       "unfurl_links" => false,
+      "unfurl_media" => false,
+      "text" => text,
       "blocks" => [
         %{
           "type" => "section",

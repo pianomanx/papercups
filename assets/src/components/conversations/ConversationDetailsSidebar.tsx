@@ -10,6 +10,7 @@ import {
   notification,
   Badge,
   Button,
+  Card,
   Input,
   Paragraph,
   Tag,
@@ -33,6 +34,7 @@ import {
   SidebarConversationTags,
 } from './SidebarTagSection';
 import SidebarCustomerNotes from './SidebarCustomerNotes';
+import SidebarCustomerIssues from './SidebarCustomerIssues';
 import RelatedCustomerConversations from './RelatedCustomerConversations';
 import SlackConversationThreads from './SlackConversationThreads';
 import * as API from '../../api';
@@ -44,19 +46,7 @@ import logger from '../../logger';
 dayjs.extend(utc);
 
 const DetailsSectionCard = ({children}: {children: any}) => {
-  return (
-    <Box
-      my={2}
-      p={2}
-      sx={{
-        bg: colors.white,
-        border: '1px solid rgba(0,0,0,.06)',
-        borderRadius: 4,
-      }}
-    >
-      {children}
-    </Box>
-  );
+  return <Card sx={{p: 2, my: 2}}>{children}</Card>;
 };
 
 const CustomerActiveSessions = ({customerId}: {customerId: string}) => {
@@ -196,7 +186,9 @@ export const CustomerDetails = ({
           mb={2}
           sx={{justifyContent: 'space-between', alignItems: 'baseline'}}
         >
-          <Text strong>{name || 'Anonymous User'}</Text>
+          <Link to={`/customers/${customer.id}`}>
+            <Text strong>{name || 'Anonymous User'}</Text>
+          </Link>
 
           <Popover
             placement="left"
@@ -223,7 +215,19 @@ export const CustomerDetails = ({
 
         <Flex mb={1} sx={{alignItems: 'center'}}>
           <MailOutlined style={{color: colors.primary}} />
-          <Box ml={2}>{email || 'Unknown'}</Box>
+          <Box
+            ml={2}
+            sx={{
+              maxWidth: '100%',
+              overflow: 'hidden',
+              whiteSpace: 'nowrap',
+              textOverflow: 'ellipsis',
+            }}
+          >
+            <Tooltip title={email} placement="left">
+              <Text>{email || 'Unknown'}</Text>
+            </Tooltip>
+          </Box>
         </Flex>
         <Flex mb={1} sx={{alignItems: 'center'}}>
           <PhoneOutlined style={{color: colors.primary}} />
@@ -343,7 +347,18 @@ export const CustomerDetails = ({
 
       <DetailsSectionCard>
         <Box mb={2}>
-          <Text strong>Customer Notes</Text>
+          <Link to={`/customers/${customer.id}?tab=issues`}>
+            <Text strong>Linked issues</Text>
+          </Link>
+        </Box>
+        <SidebarCustomerIssues customerId={customerId} />
+      </DetailsSectionCard>
+
+      <DetailsSectionCard>
+        <Box mb={2}>
+          <Link to={`/customers/${customer.id}?tab=notes`}>
+            <Text strong>Customer notes</Text>
+          </Link>
         </Box>
 
         <SidebarCustomerNotes customerId={customerId} />
@@ -351,7 +366,7 @@ export const CustomerDetails = ({
 
       <DetailsSectionCard>
         <Box mb={2}>
-          <Text strong>Customer Tags</Text>
+          <Text strong>Customer tags</Text>
         </Box>
         <SidebarCustomerTags customerId={customerId} />
       </DetailsSectionCard>
@@ -458,7 +473,7 @@ const ConversationDetails = ({conversation}: {conversation: Conversation}) => {
 
       <DetailsSectionCard>
         <Box mb={2}>
-          <Text strong>Conversation Tags</Text>
+          <Text strong>Conversation tags</Text>
         </Box>
         <SidebarConversationTags conversationId={conversationId} />
       </DetailsSectionCard>
@@ -506,7 +521,7 @@ const ConversationDetailsSidebar = ({
       sx={{
         width: '100%',
         minHeight: '100%',
-        bg: 'rgb(245, 245, 245)',
+        bg: 'rgb(250, 250, 250)',
         border: `1px solid rgba(0,0,0,.06)`,
         boxShadow: 'inset rgba(0, 0, 0, 0.1) 0px 0px 4px',
         flex: 1,

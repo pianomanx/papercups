@@ -7,7 +7,11 @@ import {
   Conversation,
   Customer,
   CustomerNote,
+  OnboardingStatus,
+  GoogleAuthParams,
+  GoogleIntegrationParams,
   Issue,
+  Lambda,
   Tag,
   User,
   WidgetSettings,
@@ -150,7 +154,7 @@ export const createNewCustomer = async (
     .send({
       customer: {
         first_seen: now(),
-        last_seen: now(),
+        last_seen_at: now(),
         ...params,
         account_id: accountId,
       },
@@ -168,7 +172,7 @@ export const fetchCustomers = async (
 
   return request
     .get(`/api/customers`)
-    .query(filters)
+    .query(qs.stringify(filters, {arrayFormat: 'bracket'}))
     .set('Authorization', token)
     .then((res) => res.body);
 };
@@ -669,6 +673,25 @@ export const sendUserInvitationEmail = async (
     .then((res) => res.body.data);
 };
 
+export const sendSlackNotification = async (
+  params: {
+    text: string;
+    type?: 'reply' | 'support';
+    channel?: string;
+  },
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/slack/notify`)
+    .send(params)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
 export const fetchSlackAuthorization = async (
   type = 'reply',
   token = getAccessToken()
@@ -680,6 +703,22 @@ export const fetchSlackAuthorization = async (
   return request
     .get(`/api/slack/authorization`)
     .query({type})
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const updateSlackAuthorizationSettings = async (
+  authorizationId: string,
+  settings: Record<string, any>,
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/slack/authorizations/${authorizationId}/settings`)
+    .send({settings})
     .set('Authorization', token)
     .then((res) => res.body.data);
 };
@@ -807,8 +846,23 @@ export const deleteTwilioAuthorization = async (
     .set('Authorization', token);
 };
 
+export const sendTwilioSms = async (
+  params: {to: string; body: string},
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/twilio/send`)
+    .send(params)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
 export const fetchGoogleAuthorization = async (
-  client: 'gmail' | 'sheets',
+  query: GoogleIntegrationParams,
   token = getAccessToken()
 ) => {
   if (!token) {
@@ -817,7 +871,7 @@ export const fetchGoogleAuthorization = async (
 
   return request
     .get(`/api/google/authorization`)
-    .query({client})
+    .query(query)
     .set('Authorization', token)
     .then((res) => res.body.data);
 };
@@ -857,6 +911,36 @@ export const deleteGithubAuthorization = async (
   return request
     .delete(`/api/github/authorizations/${authorizationId}`)
     .set('Authorization', token);
+};
+
+export const fetchGithubRepos = async (token = getAccessToken()) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/github/repos`)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const findGithubIssues = async (
+  query: {
+    url?: string;
+    owner?: string;
+    repo?: string;
+  },
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/github/issues`)
+    .query(query)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
 };
 
 export type EmailParams = {
@@ -991,8 +1075,7 @@ export const authorizeGmailIntegration = async (
 };
 
 export const authorizeGoogleIntegration = async (
-  code: string,
-  scope?: string | null,
+  query: GoogleAuthParams,
   token = getAccessToken()
 ) => {
   if (!token) {
@@ -1001,7 +1084,7 @@ export const authorizeGoogleIntegration = async (
 
   return request
     .get(`/api/google/oauth`)
-    .query({code, scope})
+    .query(query)
     .set('Authorization', token)
     .then((res) => res.body.data);
 };
@@ -1103,6 +1186,31 @@ export const createPaymentMethod = async (
     .then((res) => res.body.data);
 };
 
+export const fetchAccountUsers = async (token = getAccessToken()) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/users`)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const fetchAccountUser = async (
+  id: number,
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/users/${id}`)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
 export const disableAccountUser = async (
   userId: number | string,
   token = getAccessToken()
@@ -1131,12 +1239,8 @@ export const enableAccountUser = async (
     .then((res) => res.body.data);
 };
 
-export type CustomerNotesListResponse = {
-  data: Array<CustomerNote>;
-};
-
-export const fetchCustomerNotes = async (
-  customerId: string,
+export const fetchNotes = async (
+  query = {},
   token = getAccessToken()
 ): Promise<CustomerNote[]> => {
   if (!token) {
@@ -1145,9 +1249,21 @@ export const fetchCustomerNotes = async (
 
   return request
     .get('/api/notes')
-    .query({customer_id: customerId})
+    .query(query)
     .set('Authorization', token)
     .then((res) => res.body.data);
+};
+
+export type CustomerNotesListResponse = {
+  data: Array<CustomerNote>;
+};
+
+export const fetchCustomerNotes = async (
+  customerId: string,
+  query = {},
+  token = getAccessToken()
+): Promise<CustomerNote[]> => {
+  return fetchNotes({...query, customer_id: customerId}, token);
 };
 
 export const createCustomerNote = async (
@@ -1534,4 +1650,128 @@ export const deletePersonalApiKey = async (
     .delete(`/api/personal_api_keys/${id}`)
     .set('Authorization', token)
     .then((res) => res.body);
+};
+
+export const getOnboardingStatus = async (
+  token = getAccessToken()
+): Promise<OnboardingStatus> => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/onboarding_status`)
+    .set('Authorization', token)
+    .then((res) => res.body);
+};
+
+export const fetchLambdas = async (token = getAccessToken()) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/lambdas`)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const fetchLambda = async (id: string, token = getAccessToken()) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .get(`/api/lambdas/${id}`)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const createNewLambda = async (
+  params: Partial<Lambda>,
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/lambdas`)
+    .send({lambda: params})
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const updateLambda = async (
+  id: string,
+  updates: Partial<Lambda>,
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .put(`/api/lambdas/${id}`)
+    .send({lambda: updates})
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const deleteLambda = async (id: string, token = getAccessToken()) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .delete(`/api/lambdas/${id}`)
+    .set('Authorization', token)
+    .then((res) => res.body);
+};
+
+export const deployLambda = async (
+  id: string,
+  params = {},
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/lambdas/${id}/deploy`)
+    .send(params)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const invokeLambda = async (
+  id: string,
+  params = {},
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/lambdas/${id}/invoke`)
+    .send(params)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
+};
+
+export const sendAdminNotification = async (
+  params = {},
+  token = getAccessToken()
+) => {
+  if (!token) {
+    throw new Error('Invalid token!');
+  }
+
+  return request
+    .post(`/api/admin/notifications`)
+    .send(params)
+    .set('Authorization', token)
+    .then((res) => res.body.data);
 };

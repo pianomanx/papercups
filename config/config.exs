@@ -58,7 +58,7 @@ config :chat_api, :pow,
 
 config :chat_api, Oban,
   repo: ChatApi.Repo,
-  plugins: [Oban.Plugins.Pruner],
+  plugins: [{Oban.Plugins.Pruner, limit: 1000, max_age: 300}],
   queues: [default: 10, events: 50, mailers: 20],
   crontab: [
     # Hourly example worker
@@ -66,6 +66,8 @@ config :chat_api, Oban,
     {"0 * * * *", ChatApi.Workers.ArchiveStaleClosedConversations},
     # Syncs every minute
     {"* * * * *", ChatApi.Workers.SyncGmailInboxes},
+    # Check for reminders every 30 mins
+    {"*/30 * * * *", ChatApi.Workers.SendAllConversationReminders},
     # Sends everyday at 2pm UTC/9am EST
     {"0 14 * * *", ChatApi.Workers.SendPgNewsletter}
     # TODO: uncomment this after testing manually

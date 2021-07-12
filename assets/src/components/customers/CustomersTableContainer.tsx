@@ -1,17 +1,20 @@
 import React from 'react';
-import {Link} from 'react-router-dom';
 import {Box, Flex} from 'theme-ui';
 import {debounce} from 'lodash';
-import {Button, Checkbox, Input} from '../common';
+import {Checkbox, Input} from '../common';
 import * as API from '../../api';
 import logger from '../../logger';
 import {Customer, Pagination} from '../../types';
 import CustomersTable from './CustomersTable';
+import CustomerTagSelect from './CustomerTagSelect';
 
 type Props = {
   currentlyOnline?: any;
   shouldIncludeAnonymous?: boolean;
   defaultFilters?: Record<string, any>;
+  includeSearchInput?: boolean;
+  includeTagFilterInput?: boolean;
+  includeAnonymousUserFilter?: boolean;
   actions?: (
     refreshCustomerData: (filters?: any) => void
   ) => React.ReactElement;
@@ -22,6 +25,7 @@ type State = {
   customers: Array<Customer>;
   shouldIncludeAnonymous: boolean;
   pagination: Pagination;
+  selectedTagIds: string[];
 };
 
 const DEFAULT_PAGE_SIZE = 10;
@@ -37,6 +41,7 @@ class CustomersTableContainer extends React.Component<Props, State> {
       loading: true,
       query: '',
       customers: [],
+      selectedTagIds: [],
       shouldIncludeAnonymous,
       pagination: {
         page_number: 1,
@@ -57,11 +62,12 @@ class CustomersTableContainer extends React.Component<Props, State> {
 
     try {
       const {defaultFilters = {}} = this.props;
-      const {shouldIncludeAnonymous} = this.state;
+      const {selectedTagIds, shouldIncludeAnonymous} = this.state;
       const {data: customers, ...pagination} = await API.fetchCustomers({
         page,
         page_size: pageSize,
         include_anonymous: shouldIncludeAnonymous,
+        tag_ids: selectedTagIds,
         ...customFilters,
         ...defaultFilters,
       });
@@ -103,8 +109,18 @@ class CustomersTableContainer extends React.Component<Props, State> {
     this.handleRefreshCustomers({q: query});
   }, 200);
 
+  handleTagsSelect = (selectedTagIds: string[]) => {
+    this.setState({selectedTagIds}, () => this.handleRefreshCustomers());
+  };
+
   render() {
-    const {currentlyOnline, actions} = this.props;
+    const {
+      currentlyOnline,
+      includeSearchInput = true,
+      includeTagFilterInput = false,
+      includeAnonymousUserFilter = true,
+      actions,
+    } = this.props;
     const {loading, customers, pagination, shouldIncludeAnonymous} = this.state;
 
     return (
@@ -113,23 +129,33 @@ class CustomersTableContainer extends React.Component<Props, State> {
           <Flex mb={3} sx={{justifyContent: 'space-between'}}>
             {/* TODO: this will be where we put our search box and other filters */}
             <Flex mx={-2} sx={{alignItems: 'center'}}>
-              <Box mx={2}>
-                <Input.Search
-                  placeholder="Search customers..."
-                  allowClear
-                  onSearch={this.handleSearchCustomers}
-                  style={{width: 320}}
-                />
-              </Box>
-
-              <Box mx={2}>
+              {includeSearchInput && (
+                <Box mx={2}>
+                  <Input.Search
+                    placeholder="Search customers..."
+                    allowClear
+                    onSearch={this.handleSearchCustomers}
+                    style={{width: 280}}
+                  />
+                </Box>
+              )}
+              {includeTagFilterInput && (
+                <Box ml={2} mr={3}>
+                  <CustomerTagSelect
+                    placeholder="Filter by tags"
+                    onChange={this.handleTagsSelect}
+                    style={{width: 280}}
+                  />
+                </Box>
+              )}
+              {includeAnonymousUserFilter && (
                 <Checkbox
                   checked={shouldIncludeAnonymous}
                   onChange={this.handleToggleIncludeAnonymous}
                 >
                   Include anonymous
                 </Checkbox>
-              </Box>
+              )}
             </Flex>
 
             {/* 
@@ -149,11 +175,6 @@ class CustomersTableContainer extends React.Component<Props, State> {
             total: pagination.total_entries,
             onChange: this.handlePageChange,
           }}
-          action={(customer: Customer) => (
-            <Link to={`/customers/${customer.id}`}>
-              <Button>View profile</Button>
-            </Link>
-          )}
           onUpdate={this.handleRefreshCustomers}
         />
       </Box>

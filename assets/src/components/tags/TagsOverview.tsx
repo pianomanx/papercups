@@ -2,13 +2,12 @@ import React from 'react';
 import {Link} from 'react-router-dom';
 import {Box, Flex} from 'theme-ui';
 import {
-  Alert,
   Button,
+  Container,
   Input,
   Paragraph,
   Table,
   Tag,
-  Text,
   Title,
 } from '../common';
 import {PlusOutlined} from '../icons';
@@ -163,9 +162,9 @@ class TagsOverview extends React.Component<Props, State> {
     const {loading, isNewTagModalVisible, filteredTags = []} = this.state;
 
     return (
-      <Box p={4} sx={{maxWidth: 1080}}>
+      <Container>
         <Flex sx={{justifyContent: 'space-between', alignItems: 'center'}}>
-          <Title level={3}>Tags (beta)</Title>
+          <Title level={3}>Tags</Title>
 
           <Button
             type="primary"
@@ -186,17 +185,6 @@ class TagsOverview extends React.Component<Props, State> {
           <Paragraph>
             Use tags to organize and manage your customers and conversations.
           </Paragraph>
-
-          <Alert
-            message={
-              <Text>
-                This page is still a work in progress &mdash; more features
-                coming soon!
-              </Text>
-            }
-            type="info"
-            showIcon
-          />
         </Box>
 
         <Box mb={3}>
@@ -211,7 +199,7 @@ class TagsOverview extends React.Component<Props, State> {
         <Box my={4}>
           <TagsTable loading={loading} tags={filteredTags} />
         </Box>
-      </Box>
+      </Container>
     );
   }
 }

@@ -1,5 +1,6 @@
 defmodule ChatApiWeb.ConversationChannel do
   use ChatApiWeb, :channel
+  use Appsignal.Instrumentation.Decorators
 
   alias ChatApiWeb.Presence
   alias ChatApi.{Messages, Conversations}
@@ -75,6 +76,7 @@ defmodule ChatApiWeb.ConversationChannel do
     {:reply, {:ok, payload}, socket}
   end
 
+  @decorate channel_action()
   def handle_in("shout", payload, socket) do
     with %{conversation: conversation} <- socket.assigns,
          %{id: conversation_id, account_id: account_id} <- conversation,
@@ -98,6 +100,7 @@ defmodule ChatApiWeb.ConversationChannel do
     {:noreply, socket}
   end
 
+  @decorate channel_action()
   def handle_in("messages:seen", _payload, socket) do
     with %{conversation: conversation} <- socket.assigns,
          %{id: conversation_id} <- conversation do
@@ -111,14 +114,17 @@ defmodule ChatApiWeb.ConversationChannel do
   defp broadcast_conversation_update!(%Message{conversation_id: conversation_id} = message) do
     # Mark as unread and ensure the conversation is open, since we want to
     # reopen a conversation if it received a new message after being closed.
-    {:ok, conversation} =
-      conversation_id
-      |> Conversations.get_conversation!()
-      |> Conversations.update_conversation(%{status: "open", read: false})
+    conversation = Conversations.get_conversation!(conversation_id)
+    updates = %{status: "open", read: false}
 
-    conversation
-    |> Conversations.Notification.broadcast_conversation_update_to_admin!()
-    |> Conversations.Notification.notify(:webhooks, event: "conversation:updated")
+    if Conversations.should_update?(conversation, updates) do
+      {:ok, conversation} =
+        Conversations.update_conversation(conversation, %{status: "open", read: false})
+
+      conversation
+      |> Conversations.Notification.broadcast_conversation_update_to_admin!()
+      |> Conversations.Notification.notify(:webhooks, event: "conversation:updated")
+    end
 
     message
   end
@@ -148,6 +154,7 @@ defmodule ChatApiWeb.ConversationChannel do
     |> Messages.Notification.notify(:mattermost)
     |> Messages.Notification.notify(:new_message_email)
     |> Messages.Notification.notify(:webhooks)
+    |> Messages.Helpers.handle_post_creation_hooks()
   end
 
   # Add authorization logic here as required.

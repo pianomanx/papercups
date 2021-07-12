@@ -1,4 +1,6 @@
 defmodule ChatApi.Google.Gmail do
+  require Logger
+
   def send_message(
         refresh_token,
         %{to: _to, from: _from, subject: _subject, text: _text} = params
@@ -54,6 +56,18 @@ defmodule ChatApi.Google.Gmail do
     result
   end
 
+  def get_message_attachment(message_id, attachment_id, refresh_token) do
+    scope =
+      "https://gmail.googleapis.com/gmail/v1/users/me/messages/#{message_id}/attachments/#{
+        attachment_id
+      }"
+
+    client = ChatApi.Google.Auth.get_token!(refresh_token: refresh_token)
+    %{body: result} = OAuth2.Client.get!(client, scope)
+
+    result
+  end
+
   def list_threads(refresh_token, query \\ []) do
     q = query |> Enum.map_join(" ", fn {k, v} -> "#{k}:#{v}" end) |> URI.encode()
     scope = "https://gmail.googleapis.com/gmail/v1/users/me/threads?q=#{q}"
@@ -66,18 +80,38 @@ defmodule ChatApi.Google.Gmail do
   def get_thread(thread_id, refresh_token) do
     scope = "https://gmail.googleapis.com/gmail/v1/users/me/threads/#{thread_id}?format=full"
     client = ChatApi.Google.Auth.get_token!(refresh_token: refresh_token)
-    %{body: result} = OAuth2.Client.get!(client, scope)
 
-    result
+    case OAuth2.Client.get(client, scope) do
+      {:ok, %{body: result}} ->
+        result
+
+      {:error, %{body: %{"error" => %{"code" => 404}}}} ->
+        Logger.warn("Gmail thread #{inspect(thread_id)} not found")
+
+        nil
+
+      {:error, error} ->
+        raise error
+    end
   end
 
   def list_history(refresh_token, query \\ []) do
     qs = URI.encode_query(query)
     scope = "https://gmail.googleapis.com/gmail/v1/users/me/history?#{qs}"
     client = ChatApi.Google.Auth.get_token!(refresh_token: refresh_token)
-    %{body: result} = OAuth2.Client.get!(client, scope)
 
-    result
+    case OAuth2.Client.get(client, scope) do
+      {:ok, %{body: result}} ->
+        result
+
+      {:error, %{body: %{"error" => %{"code" => 404}}}} ->
+        Logger.warn("Gmail history not found for #{inspect(qs)}")
+
+        nil
+
+      {:error, error} ->
+        raise error
+    end
   end
 
   def list_labels(refresh_token, query \\ []) do
@@ -131,6 +165,36 @@ defmodule ChatApi.Google.Gmail do
     |> Map.get("value")
   end
 
+  defmodule GmailAttachment do
+    defstruct [:message_id, :attachment_id, :filename, :mime_type, :data]
+
+    @type t :: %__MODULE__{
+            message_id: String.t(),
+            attachment_id: String.t(),
+            filename: String.t(),
+            mime_type: String.t(),
+            data: binary() | nil
+          }
+  end
+
+  def download_message_attachment(
+        %GmailAttachment{
+          attachment_id: attachment_id,
+          message_id: message_id,
+          filename: filename
+        },
+        refresh_token
+      ) do
+    identifier = ChatApi.Aws.generate_unique_filename(filename)
+
+    with %{"data" => encoded_attachment_data} <-
+           get_message_attachment(message_id, attachment_id, refresh_token),
+         {:ok, decoded_attachment_data} <- decode_message_body(encoded_attachment_data),
+         {:ok, _result} <- ChatApi.Aws.upload_binary(decoded_attachment_data, identifier) do
+      ChatApi.Aws.get_file_url(identifier)
+    end
+  end
+
   defmodule GmailMessage do
     defstruct [
       :id,
@@ -151,7 +215,8 @@ defmodule ChatApi.Google.Gmail do
       :references,
       :text,
       :html,
-      :formatted_text
+      :formatted_text,
+      attachments: []
     ]
 
     @type t :: %__MODULE__{
@@ -173,7 +238,8 @@ defmodule ChatApi.Google.Gmail do
             references: String.t() | nil,
             text: String.t() | nil,
             html: String.t() | nil,
-            formatted_text: String.t() | nil
+            formatted_text: String.t() | nil,
+            attachments: [GmailAttachment.t()]
           }
   end
 
@@ -266,7 +332,8 @@ defmodule ChatApi.Google.Gmail do
       references: headers["references"],
       text: default_text,
       html: default_text,
-      formatted_text: remove_original_email(default_text)
+      formatted_text: remove_original_email(default_text),
+      attachments: []
     }
 
     payload
@@ -324,6 +391,23 @@ defmodule ChatApi.Google.Gmail do
             {:ok, decoded} -> Map.merge(acc, %{html: decoded})
             :error -> acc
           end
+
+        %{
+          "mimeType" => mime_type,
+          "filename" => filename,
+          "body" => %{"attachmentId" => attachment_id}
+        } ->
+          Map.merge(acc, %{
+            attachments: [
+              %GmailAttachment{
+                filename: filename,
+                attachment_id: attachment_id,
+                message_id: message.id,
+                mime_type: mime_type
+              }
+              | acc.attachments
+            ]
+          })
 
         _ ->
           acc

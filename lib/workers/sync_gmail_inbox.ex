@@ -3,7 +3,7 @@ defmodule ChatApi.Workers.SyncGmailInbox do
 
   require Logger
 
-  alias ChatApi.{Conversations, Customers, Google, Messages, Users}
+  alias ChatApi.{Conversations, Customers, Files, Google, Messages, Users}
   alias ChatApi.Google.{Gmail, GmailConversationThread, GoogleAuthorization}
 
   @impl Oban.Worker
@@ -20,7 +20,7 @@ defmodule ChatApi.Workers.SyncGmailInbox do
            refresh_token: refresh_token,
            metadata: %{"next_history_id" => start_history_id}
          } = authorization <-
-           Google.get_authorization_by_account(account_id, %{client: "gmail"}),
+           Google.get_authorization_by_account(account_id, %{client: "gmail", type: "support"}),
          %{"emailAddress" => email} <- Gmail.get_profile(refresh_token),
          %{"historyId" => next_history_id, "history" => [_ | _] = history} <-
            Gmail.list_history(refresh_token,
@@ -69,9 +69,13 @@ defmodule ChatApi.Workers.SyncGmailInbox do
     end)
     |> Enum.uniq_by(fn %{"threadId" => thread_id} -> thread_id end)
     |> Enum.map(fn %{"threadId" => thread_id} ->
-      thread_id
-      |> Gmail.get_thread(refresh_token)
-      |> Gmail.format_thread(exclude_labels: ["SPAM", "DRAFT", "CATEGORY_PROMOTIONS"])
+      case Gmail.get_thread(thread_id, refresh_token) do
+        nil ->
+          nil
+
+        thread ->
+          Gmail.format_thread(thread, exclude_labels: ["SPAM", "DRAFT", "CATEGORY_PROMOTIONS"])
+      end
     end)
     |> Enum.reject(&skip_processing_thread?/1)
     |> Enum.each(fn thread ->
@@ -81,7 +85,9 @@ defmodule ChatApi.Workers.SyncGmailInbox do
     end)
   end
 
-  @spec skip_processing_thread?(Gmail.GmailThread.t()) :: boolean
+  @spec skip_processing_thread?(Gmail.GmailThread.t() | nil) :: boolean
+  def skip_processing_thread?(nil), do: true
+
   def skip_processing_thread?(%Gmail.GmailThread{} = thread) do
     case thread do
       %{messages: []} ->
@@ -179,6 +185,7 @@ defmodule ChatApi.Workers.SyncGmailInbox do
         account_id: account_id,
         customer_id: customer.id,
         assignee_id: assignee_id,
+        subject: initial_message.subject,
         source: "email"
       })
 
@@ -205,16 +212,16 @@ defmodule ChatApi.Workers.SyncGmailInbox do
           GmailConversationThread.t()
         ) :: Messages.Message.t()
   def process_new_message(
-        %Gmail.GmailMessage{} = message,
+        %Gmail.GmailMessage{} = gmail_message,
         %GoogleAuthorization{
           account_id: account_id,
           user_id: authorization_user_id
-        },
+        } = authorization,
         %GmailConversationThread{conversation_id: conversation_id}
       ) do
-    sender_email = Gmail.extract_email_address(message.from)
+    sender_email = Gmail.extract_email_address(gmail_message.from)
     admin_user = Users.find_user_by_email(sender_email, account_id)
-    is_sent = message |> Map.get(:label_ids, []) |> Enum.member?("SENT")
+    is_sent = gmail_message |> Map.get(:label_ids, []) |> Enum.member?("SENT")
 
     sender_params =
       case {admin_user, is_sent} do
@@ -230,28 +237,67 @@ defmodule ChatApi.Workers.SyncGmailInbox do
           %{customer_id: customer.id}
       end
 
-    sender_params
-    |> Map.merge(%{
-      body: message.formatted_text,
-      conversation_id: conversation_id,
-      account_id: account_id,
-      source: "email",
-      metadata: Gmail.format_message_metadata(message),
-      sent_at:
-        with {unix, _} <- Integer.parse(message.ts),
-             {:ok, datetime} <- DateTime.from_unix(unix, :millisecond) do
-          datetime
-        else
-          _ -> DateTime.utc_now()
-        end
-    })
-    |> Messages.create_and_fetch!()
+    {:ok, message} =
+      sender_params
+      |> Map.merge(%{
+        body: gmail_message.formatted_text,
+        conversation_id: conversation_id,
+        account_id: account_id,
+        source: "email",
+        metadata: Gmail.format_message_metadata(gmail_message),
+        sent_at:
+          with {unix, _} <- Integer.parse(gmail_message.ts),
+               {:ok, datetime} <- DateTime.from_unix(unix, :millisecond) do
+            datetime
+          else
+            _ -> DateTime.utc_now()
+          end
+      })
+      |> Messages.create_message()
+
+    attachment_files_ids =
+      gmail_message
+      |> Map.get(:attachments, [])
+      |> process_message_attachments(authorization)
+      |> Enum.map(& &1.id)
+
+    Messages.create_attachments(message, attachment_files_ids)
+
+    message.id
+    |> Messages.get_message!()
     |> Messages.Notification.broadcast_to_admin!()
     |> Messages.Notification.notify(:webhooks)
     # NB: we need to make sure the messages are created in the correct order, so we set async: false
     |> Messages.Notification.notify(:slack, async: false)
     |> Messages.Notification.notify(:mattermost, async: false)
     # NB: for email threads, for now we want to reopen the conversation if it was closed
-    |> Messages.Helpers.handle_post_creation_conversation_updates()
+    |> Messages.Helpers.handle_post_creation_hooks()
+  end
+
+  def process_message_attachments(nil, _authorization), do: []
+  def process_message_attachments([], _authorization), do: []
+
+  def process_message_attachments(
+        [_ | _] = attachments,
+        %GoogleAuthorization{
+          account_id: account_id,
+          refresh_token: refresh_token
+        } = _authorization
+      ) do
+    Enum.map(attachments, fn %Gmail.GmailAttachment{filename: filename} = attachment ->
+      unique_filename = ChatApi.Aws.generate_unique_filename(filename)
+      file_url = Gmail.download_message_attachment(attachment, refresh_token)
+
+      {:ok, file} =
+        Files.create_file(%{
+          "filename" => filename,
+          "unique_filename" => unique_filename,
+          "file_url" => file_url,
+          "content_type" => attachment.mime_type,
+          "account_id" => account_id
+        })
+
+      file
+    end)
   end
 end
